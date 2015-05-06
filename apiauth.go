@@ -24,24 +24,9 @@ func init() {
 // Sign computes the signature for the given HTTP request, and
 // adds the resulting Authorization header value to it. If any
 // of the prerequisite headers are absent, an error is returned.
-func Sign(r *http.Request, accessID, secretKey string) error {
-	var date, contentType, contentMD5 string
-
-	date = r.Header.Get("Date")
-	if date == "" {
-		return fmt.Errorf("No Date header present")
-	}
-
-	if r.Body != nil {
-		contentType = r.Header.Get("Content-Type")
-		if contentType == "" {
-			return fmt.Errorf("No Content-Type header present")
-		}
-
-		contentMD5 = r.Header.Get("Content-MD5")
-		if contentMD5 == "" {
-			return fmt.Errorf("No Content-MD5 header present")
-		}
+func Sign(r *http.Request, accessID, secret string) error {
+	if err := sufficientHeaders(r); err != nil {
+		return err
 	}
 
 	preexisting := r.Header.Get("Authorization")
@@ -49,7 +34,7 @@ func Sign(r *http.Request, accessID, secretKey string) error {
 		return fmt.Errorf("Authorization header already present")
 	}
 
-	sig := Compute(CanonicalString(r), secretKey)
+	sig := Compute(CanonicalString(r), secret)
 	r.Header.Set("Authorization", fmt.Sprintf("APIAuth %s:%s", accessID, sig))
 
 	return nil
@@ -57,8 +42,56 @@ func Sign(r *http.Request, accessID, secretKey string) error {
 
 // Verify checks a request for validity: all required headers
 // are present and the signature matches.
-func Verify(r *http.Request, secretKey string) error {
-	return nil
+func Verify(r *http.Request, secret string) error {
+	if err := sufficientHeaders(r); err != nil {
+		return err
+	}
+
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		return fmt.Errorf("Authorization header not set")
+	}
+
+	_, sig, err := Parse(auth)
+	if err != nil {
+		return err
+	}
+
+	if VerifySignature(sig, CanonicalString(r), secret) {
+		return nil
+	}
+
+	return fmt.Errorf("Signature mismatch")
+}
+
+// VerifySignature computes the expected signature for a given
+// canonical string and secret key pair, and returns true if the
+// given signature matches.
+func VerifySignature(sig, canonicalString, secret string) bool {
+	expected := Compute(canonicalString, secret)
+	return expected == sig
+}
+
+// Parse returns the access ID and signature present in the
+// given string, presumably taken from a request's Authorization
+// header. If the header does not match the expected `APIAuth access_id:signature`
+// format, an error is returned.
+func Parse(header string) (id, sig string, err error) {
+	var tokens []string
+
+	if !strings.HasPrefix(header, "APIAuth ") {
+		goto malformed
+	}
+
+	tokens = strings.Split(header[8:], ":")
+	if len(tokens) != 2 || tokens[0] == "" || tokens[1] == "" {
+		goto malformed
+	}
+
+	return tokens[0], tokens[1], nil
+
+malformed:
+	return "", "", fmt.Errorf("Malformed header: %s", header)
 }
 
 // Date returns a suitable value for a request's Date header,
@@ -99,8 +132,29 @@ func CanonicalString(r *http.Request) string {
 
 // Compute computes the signature for a given canonical string, using
 // the HMAC-SHA1.
-func Compute(canonicalString, secretKey string) string {
-	mac := hmac.New(sha1.New, []byte(secretKey))
+func Compute(canonicalString, secret string) string {
+	mac := hmac.New(sha1.New, []byte(secret))
 	mac.Write([]byte(canonicalString))
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func sufficientHeaders(r *http.Request) error {
+	date := r.Header.Get("Date")
+	if date == "" {
+		return fmt.Errorf("No Date header present")
+	}
+
+	if r.Body != nil {
+		contentType := r.Header.Get("Content-Type")
+		if contentType == "" {
+			return fmt.Errorf("No Content-Type header present")
+		}
+
+		contentMD5 := r.Header.Get("Content-MD5")
+		if contentMD5 == "" {
+			return fmt.Errorf("No Content-MD5 header present")
+		}
+	}
+
+	return nil
 }

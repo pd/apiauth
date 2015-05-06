@@ -51,6 +51,10 @@ This implementation is intentionally somewhat less "friendly" than mgomes' [Ruby
 
 * Only the `Authorization` header is set for you by `apiauth.Sign`; setting the `Date`, `Content-Type`
   and `Content-MD5` headers is the caller's responsibility.
+* The `apiauth.Verify` function does *not* enforce a maximum time duration between the `Date` header
+  in a request and the matching `Date` value computed by the server. Protection against replay attacks
+  is the caller's responsibility. (**NB**: but maybe shouldn't be; I'm just being lazy right now, as
+  it's already handled in the application I'm writing this for)
 * The `apiauth.Verify` function does *not* validate the `Content-MD5` header: doing so would require
   reading the entire request body into memory at least once, which is undesirable in many use cases.
   Verification of the payload MD5 is the caller's responsibility.

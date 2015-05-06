@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func base64md5(bytes []byte) string {
+	sum := md5.Sum(bytes)
+	return base64.StdEncoding.EncodeToString(sum[:])
+}
+
 func TestCanonicalString(t *testing.T) {
 	req, _ := http.NewRequest("POST", "http://example.com", nil)
 	require.Equal(t, ",,/,", CanonicalString(req))
@@ -100,7 +105,79 @@ func TestSign_WithBody(t *testing.T) {
 	require.NoError(t, Sign(req, "me", "secret"))
 }
 
-func base64md5(bytes []byte) string {
-	sum := md5.Sum(bytes)
-	return base64.StdEncoding.EncodeToString(sum[:])
+func TestParse(t *testing.T) {
+	_, _, err := Parse("NotAPIAuth here")
+	require.Error(t, err)
+
+	_, _, err = Parse("APIAuth noseparator")
+	require.Error(t, err)
+
+	_, _, err = Parse("APIAuth nosig:")
+	require.Error(t, err)
+
+	_, _, err = Parse("APIAuth :noaccessID")
+	require.Error(t, err)
+
+	id, sig, err := Parse("APIAuth me:sig")
+	require.Equal(t, "me", id)
+	require.Equal(t, "sig", sig)
+}
+
+func TestVerify(t *testing.T) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
+	req.Header.Set("Authorization", "APIAuth me:N7N1BXAWv6+RXos4vSAAd7D0XJY=")
+	require.NoError(t, Verify(req, "secret"))
+}
+
+func TestVerify_BadAuthorizationHeader(t *testing.T) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
+
+	require.Error(t, Verify(req, "secret"))
+
+	req.Header.Set("Authorization", "something else")
+	require.Error(t, Verify(req, "secret"))
+
+	req.Header.Set("Authorization", "APIAuth nosig:")
+	require.Error(t, Verify(req, "secret"))
+
+	req.Header.Set("Authorization", "APIAuth :noaccessID")
+	require.Error(t, Verify(req, "secret"))
+}
+
+func TestVerify_NoDate(t *testing.T) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", "APIAuth me:N7N1BXAWv6+RXos4vSAAd7D0XJY=")
+	require.Error(t, Verify(req, "secret"))
+}
+
+func TestVerify_WithBody(t *testing.T) {
+	body := []byte(`post body`)
+	req, _ := http.NewRequest("POST", "http://example.com", bytes.NewReader(body))
+
+	req.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
+	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("Content-MD5", "WnNni3tnQAUFZDSkgFRwfQ==")
+	req.Header.Set("Authorization", "APIAuth me:/Z/MqEW+v23Cm3w3Ra2mMGH9KFw=")
+	require.NoError(t, Verify(req, "secret"))
+
+	req.Header.Del("Content-Type")
+	require.Error(t, Verify(req, "secret"))
+
+	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Del("Content-MD5")
+	require.Error(t, Verify(req, "secret"))
+}
+
+func TestVerify_AcceptIncorrectMD5(t *testing.T) {
+	body := []byte(`post body`)
+	req, _ := http.NewRequest("POST", "http://example.com", bytes.NewReader(body))
+
+	req.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
+	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("Content-MD5", "not actually an md5 but this lib does not care")
+	req.Header.Set("Authorization", "APIAuth me:wgoGTprhCINnwvwVdThpVHcEPqg=")
+
+	require.NoError(t, Verify(req, "secret"))
 }
