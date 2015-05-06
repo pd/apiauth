@@ -79,6 +79,10 @@ func DateForTime(t time.Time) string {
 // based on the headers in the given request.
 func CanonicalString(r *http.Request) string {
 	uri := r.URL.Path
+	if uri == "" {
+		uri = "/"
+	}
+
 	if r.URL.RawQuery != "" {
 		uri = uri + "?" + r.URL.RawQuery
 	}

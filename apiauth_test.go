@@ -12,7 +12,13 @@ import (
 )
 
 func TestCanonicalString(t *testing.T) {
-	req, _ := http.NewRequest("POST", "http://example.com/some/path", nil)
+	req, _ := http.NewRequest("POST", "http://example.com", nil)
+	require.Equal(t, ",,/,", CanonicalString(req))
+
+	req.URL.Path = "/"
+	require.Equal(t, ",,/,", CanonicalString(req))
+
+	req.URL.Path = "/some/path"
 	require.Equal(t, ",,/some/path,", CanonicalString(req))
 
 	req.URL.RawQuery = "x=1&b=2"
@@ -49,7 +55,7 @@ func TestSign(t *testing.T) {
 	get.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
 
 	require.NoError(t, Sign(get, "me", "secret"))
-	require.Equal(t, "APIAuth me:nufwBoHpd5UOkNv07V/HGMzXTU4=", get.Header.Get("Authorization"))
+	require.Equal(t, "APIAuth me:N7N1BXAWv6+RXos4vSAAd7D0XJY=", get.Header.Get("Authorization"))
 
 	post, _ := http.NewRequest("POST", "http://example.com", nil)
 	post.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
@@ -57,7 +63,7 @@ func TestSign(t *testing.T) {
 	post.Header.Set("Content-MD5", "WnNni3tnQAUFZDSkgFRwfQ==")
 
 	require.NoError(t, Sign(post, "me", "secret"))
-	require.Equal(t, "APIAuth me:wjEG9epEt9OECpopFYv7CHKPUEk=", post.Header.Get("Authorization"))
+	require.Equal(t, "APIAuth me:/Z/MqEW+v23Cm3w3Ra2mMGH9KFw=", post.Header.Get("Authorization"))
 }
 
 func TestSign_AuthorizationHeaderPresent(t *testing.T) {
