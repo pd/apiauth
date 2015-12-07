@@ -40,6 +40,25 @@ func Sign(r *http.Request, accessID, secret string) error {
 	return nil
 }
 
+// SignWithMethod computs the signature of the given HTTP request
+// as in Sign except that the canonical string includes the HTTP
+// request method.
+func SignWithMethod(r *http.Request, accessID, secret string) error {
+	if err := sufficientHeaders(r); err != nil {
+		return err
+	}
+
+	preexisting := r.Header.Get("Authorization")
+	if preexisting != "" {
+		return fmt.Errorf("Authorization header already present")
+	}
+
+	sig := Compute(CanonicalStringWithMethod(r), secret)
+	r.Header.Set("Authorization", fmt.Sprintf("APIAuth %s:%s", accessID, sig))
+
+	return nil
+}
+
 // Verify checks a request for validity: all required headers
 // are present and the signature matches.
 func Verify(r *http.Request, secret string) error {
@@ -57,7 +76,7 @@ func Verify(r *http.Request, secret string) error {
 		return err
 	}
 
-	if VerifySignature(sig, CanonicalString(r), secret) {
+	if VerifySignature(sig, CanonicalString(r), secret) || VerifySignature(sig, CanonicalStringWithMethod(r), secret) {
 		return nil
 	}
 
@@ -127,6 +146,15 @@ func CanonicalString(r *http.Request) string {
 		header.Get("Content-MD5"),
 		uri,
 		header.Get("Date"),
+	}, ",")
+}
+
+// CanonicalStringWithMethod returns a canonical string as in CanonicalString
+// but also includes the request method
+func CanonicalStringWithMethod(r *http.Request) string {
+	return strings.Join([]string{
+		strings.ToUpper(r.Method),
+		CanonicalString(r),
 	}, ",")
 }
 
