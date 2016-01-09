@@ -2,6 +2,17 @@
 
 [ApiAuth][]-compatible package for signing and verifying HTTP requests in golang.
 
+## IMPORTANT!: Security Update
+In order to prevent a security vulnerability present in the reference version of
+[ApiAuth][] we have added functions in order to sign and verify requests with a
+canonical string that includes the HTTP method. We have added the fucntions
+`SignWithMethod` and `CanonicalStringWithMethod`, and the `Verify` function has
+been modified to accept requests where the request signature matches
+`CanonicalString` OR `CanonicalStringWithMethod`. In the future the old versions
+will be removed and canonical strings will only be considered a match if they 
+include the request method. We recommend you start using the new way of siging
+requests immediately.
+
 ## Usage
 
 Signing a request:
