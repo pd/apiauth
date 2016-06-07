@@ -17,27 +17,6 @@ func base64md5(bytes []byte) string {
 }
 
 func TestCanonicalString(t *testing.T) {
-	req, _ := http.NewRequest("POST", "http://example.com", nil)
-	require.Equal(t, ",,/,", CanonicalString(req))
-
-	req.URL.Path = "/"
-	require.Equal(t, ",,/,", CanonicalString(req))
-
-	req.URL.Path = "/some/path"
-	require.Equal(t, ",,/some/path,", CanonicalString(req))
-
-	req.URL.RawQuery = "x=1&b=2"
-	require.Equal(t, ",,/some/path?x=1&b=2,", CanonicalString(req))
-
-	req.Header.Add("Content-Type", "text/plain")
-	req.Header.Add("Content-MD5", "WnNni3tnQAUFZDSkgFRwfQ==")
-	req.Header.Add("Date", "Thu, 19 Mar 2015 19:24:24 GMT")
-
-	want := "text/plain,WnNni3tnQAUFZDSkgFRwfQ==,/some/path?x=1&b=2,Thu, 19 Mar 2015 19:24:24 GMT"
-	require.Equal(t, want, CanonicalString(req))
-}
-
-func TestCanonicalStringWithMethod(t *testing.T) {
 	req, _ := http.NewRequest("POST", "http://example.com/some/path?x=1&b=2", nil)
 
 	req.Header.Add("Content-Type", "text/plain")
@@ -45,11 +24,11 @@ func TestCanonicalStringWithMethod(t *testing.T) {
 	req.Header.Add("Date", "Thu, 19 Mar 2015 19:24:24 GMT")
 
 	want := "POST,text/plain,WnNni3tnQAUFZDSkgFRwfQ==,/some/path?x=1&b=2,Thu, 19 Mar 2015 19:24:24 GMT"
-	require.Equal(t, want, CanonicalStringWithMethod(req))
+	require.Equal(t, want, CanonicalString(req))
 
 	req.Method = "get"
 	want = "GET,text/plain,WnNni3tnQAUFZDSkgFRwfQ==,/some/path?x=1&b=2,Thu, 19 Mar 2015 19:24:24 GMT"
-	require.Equal(t, want, CanonicalStringWithMethod(req))
+	require.Equal(t, want, CanonicalString(req))
 }
 
 func TestCompute(t *testing.T) {
@@ -70,22 +49,25 @@ func TestDate(t *testing.T) {
 	require.Equal(t, DateForTime(time.Now()), Date())
 }
 
-var sig = `as0dIwNOHAEi7yVHH+QM2kjO5Xw=`
+func TestSign_AuthorizationHeaderPresentx(t *testing.T) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Date", Date())
+	req.Header.Set("Authorization", "anything")
+
+	err := Sign(req, "me", "key")
+	require.Error(t, err)
+}
 
 func TestSign(t *testing.T) {
-	get, _ := http.NewRequest("GET", "http://example.com", nil)
-	get.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
+	req, _ := http.NewRequest("POST", "http://example.com/some/path?x=1&b=2", nil)
 
-	require.NoError(t, Sign(get, "me", "secret"))
-	require.Equal(t, "APIAuth me:N7N1BXAWv6+RXos4vSAAd7D0XJY=", get.Header.Get("Authorization"))
+	req.Header.Add("Content-Type", "text/plain")
+	req.Header.Add("Content-MD5", "WnNni3tnQAUFZDSkgFRwfQ==")
+	req.Header.Add("Date", "Thu, 19 Mar 2015 19:24:24 GMT")
 
-	post, _ := http.NewRequest("POST", "http://example.com", nil)
-	post.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
-	post.Header.Set("Content-Type", "text/plain")
-	post.Header.Set("Content-MD5", "WnNni3tnQAUFZDSkgFRwfQ==")
-
-	require.NoError(t, Sign(post, "me", "secret"))
-	require.Equal(t, "APIAuth me:/Z/MqEW+v23Cm3w3Ra2mMGH9KFw=", post.Header.Get("Authorization"))
+	want := `APIAuth me:43DQKYwiMx3swEwa3raDq5tPxIo=`
+	require.NoError(t, Sign(req, "me", "secret"))
+	require.Equal(t, want, req.Header.Get("Authorization"))
 }
 
 func TestSign_AuthorizationHeaderPresent(t *testing.T) {
@@ -122,52 +104,6 @@ func TestSign_WithBody(t *testing.T) {
 	require.NoError(t, Sign(req, "me", "secret"))
 }
 
-func TestSignWithMethod(t *testing.T) {
-	req, _ := http.NewRequest("POST", "http://example.com/some/path?x=1&b=2", nil)
-
-	req.Header.Add("Content-Type", "text/plain")
-	req.Header.Add("Content-MD5", "WnNni3tnQAUFZDSkgFRwfQ==")
-	req.Header.Add("Date", "Thu, 19 Mar 2015 19:24:24 GMT")
-
-	want := `APIAuth me:43DQKYwiMx3swEwa3raDq5tPxIo=`
-	require.NoError(t, SignWithMethod(req, "me", "secret"))
-	require.Equal(t, want, req.Header.Get("Authorization"))
-}
-
-func TestSignWithMethod_AuthorizationHeaderPresent(t *testing.T) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Date", Date())
-	req.Header.Set("Authorization", "anything")
-
-	err := SignWithMethod(req, "me", "key")
-	require.Error(t, err)
-}
-
-func TestSignWithMethod_GETNoDate(t *testing.T) {
-	secretKey := "secret"
-
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	require.Error(t, SignWithMethod(req, "me", secretKey))
-	require.Equal(t, "", req.Header.Get("Authorization"))
-
-	req.Header.Set("date", Date())
-	require.NoError(t, SignWithMethod(req, "me", secretKey))
-}
-
-func TestSignWithMethod_WithBody(t *testing.T) {
-	body := []byte(`post body`)
-	req, _ := http.NewRequest("POST", "http://example.com", bytes.NewReader(body))
-
-	req.Header.Set("Date", Date())
-	require.Error(t, SignWithMethod(req, "me", "secret"))
-
-	req.Header.Set("Content-Type", "text/plain")
-	require.Error(t, SignWithMethod(req, "me", "secret"))
-
-	req.Header.Set("Content-MD5", base64md5(body))
-	require.NoError(t, SignWithMethod(req, "me", "secret"))
-}
-
 func TestParse(t *testing.T) {
 	_, _, err := Parse("NotAPIAuth here")
 	require.Error(t, err)
@@ -187,13 +123,6 @@ func TestParse(t *testing.T) {
 }
 
 func TestVerify(t *testing.T) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
-	req.Header.Set("Authorization", "APIAuth me:N7N1BXAWv6+RXos4vSAAd7D0XJY=")
-	require.NoError(t, Verify(req, "secret"))
-}
-
-func TestVerify_WithMethod(t *testing.T) {
 	req, _ := http.NewRequest("POST", "http://example.com/some/path?x=1&b=2", nil)
 
 	req.Header.Add("Content-Type", "text/plain")
@@ -233,7 +162,7 @@ func TestVerify_WithBody(t *testing.T) {
 	req.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
 	req.Header.Set("Content-Type", "text/plain")
 	req.Header.Set("Content-MD5", "WnNni3tnQAUFZDSkgFRwfQ==")
-	req.Header.Set("Authorization", "APIAuth me:/Z/MqEW+v23Cm3w3Ra2mMGH9KFw=")
+	req.Header.Set("Authorization", "APIAuth me:M9OiyO1hNKuHot1ll6+MZZn4ymo=")
 	require.NoError(t, Verify(req, "secret"))
 
 	req.Header.Del("Content-Type")
@@ -251,7 +180,7 @@ func TestVerify_AcceptIncorrectMD5(t *testing.T) {
 	req.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
 	req.Header.Set("Content-Type", "text/plain")
 	req.Header.Set("Content-MD5", "not actually an md5 but this lib does not care")
-	req.Header.Set("Authorization", "APIAuth me:wgoGTprhCINnwvwVdThpVHcEPqg=")
+	req.Header.Set("Authorization", "APIAuth me:AOinPMj/pONpWXNIIgr58CecGQg=")
 
 	require.NoError(t, Verify(req, "secret"))
 }
