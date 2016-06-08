@@ -37,6 +37,12 @@ func TestCanonicalString(t *testing.T) {
 	require.Equal(t, want, CanonicalString(req))
 }
 
+func TestCanonicalStringEncoded(t *testing.T) {
+	req, _ := http.NewRequest("GET", "http://localhost:9000/search/K/Westcott%20Schaffer/1982-05-17", nil)
+	want := `GET,,,/search/K/Westcott%20Schaffer/1982-05-17,`
+	require.Equal(t, want, CanonicalStringWithMethod(req))
+}
+
 func TestCanonicalStringWithMethod(t *testing.T) {
 	req, _ := http.NewRequest("POST", "http://example.com/some/path?x=1&b=2", nil)
 
