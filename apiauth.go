@@ -130,7 +130,7 @@ func DateForTime(t time.Time) string {
 // CanonicalString returns the canonical string used for the signature
 // based on the headers in the given request.
 func CanonicalString(r *http.Request) string {
-	uri := r.URL.Path
+	uri := r.URL.EscapedPath()
 	if uri == "" {
 		uri = "/"
 	}
