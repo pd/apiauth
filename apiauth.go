@@ -16,7 +16,7 @@ var gmt *time.Location
 func init() {
 	loc, err := time.LoadLocation("Etc/GMT")
 	if err != nil {
-		log.Panic("apiauth: Can not load timezone Etc/GMT: ", err)
+		log.Fatalf("Failed to load apiauth -  Can not load timezone Etc/GMT: %s. See https://golang.org/pkg/time/#LoadLocation", err.Error())
 	}
 	gmt = loc
 }
