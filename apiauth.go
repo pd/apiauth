@@ -91,6 +91,10 @@ func VerifySignature(sig, canonicalString, secret string) bool {
 	return expected == sig
 }
 
+func returnMalformed(header string) (id, sig string, err error) {
+	return "", "", fmt.Errorf("Malformed header: %s", header)
+}
+
 // Parse returns the access ID and signature present in the
 // given string, presumably taken from a request's Authorization
 // header. If the header does not match the expected `APIAuth access_id:signature`
@@ -99,18 +103,15 @@ func Parse(header string) (id, sig string, err error) {
 	var tokens []string
 
 	if !strings.HasPrefix(header, "APIAuth ") {
-		goto malformed
+		return returnMalformed(header)
 	}
 
 	tokens = strings.Split(header[8:], ":")
 	if len(tokens) != 2 || tokens[0] == "" || tokens[1] == "" {
-		goto malformed
+		return returnMalformed(header)
 	}
 
 	return tokens[0], tokens[1], nil
-
-malformed:
-	return "", "", fmt.Errorf("Malformed header: %s", header)
 }
 
 // Date returns a suitable value for a request's Date header,
