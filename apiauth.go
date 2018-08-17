@@ -172,16 +172,18 @@ func sufficientHeaders(r *http.Request) error {
 		return fmt.Errorf("No Date header present")
 	}
 
-	if r.Body != nil {
-		contentType := r.Header.Get("Content-Type")
-		if contentType == "" {
-			return fmt.Errorf("No Content-Type header present")
-		}
+	if r.Body == nil || r.Body == http.NoBody {
+		return nil
+	}
 
-		contentMD5 := r.Header.Get("Content-MD5")
-		if contentMD5 == "" {
-			return fmt.Errorf("No Content-MD5 header present")
-		}
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "" {
+		return fmt.Errorf("No Content-Type header present")
+	}
+
+	contentMD5 := r.Header.Get("Content-MD5")
+	if contentMD5 == "" {
+		return fmt.Errorf("No Content-MD5 header present")
 	}
 
 	return nil
