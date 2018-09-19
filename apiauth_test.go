@@ -199,6 +199,13 @@ func TestVerify(t *testing.T) {
 	require.NoError(t, Verify(req, "secret"))
 }
 
+func TestVerifyNoBody(t *testing.T) {
+	req, _ := http.NewRequest("GET", "http://example.com", http.NoBody)
+	req.Header.Set("Date", "Fri, 20 Mar 2015 19:37:40 GMT")
+	req.Header.Set("Authorization", "APIAuth me:N7N1BXAWv6+RXos4vSAAd7D0XJY=")
+	require.NoError(t, Verify(req, "secret"))
+}
+
 func TestVerify_WithMethod(t *testing.T) {
 	req, _ := http.NewRequest("POST", "http://example.com/some/path?x=1&b=2", nil)
 
