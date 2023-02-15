@@ -141,11 +141,16 @@ func CanonicalString(r *http.Request) string {
 
 	header := r.Header
 
+	date := header.Get("Date")
+	if date == "" {
+		date = header.Get("Timestamp")
+	}
+
 	return strings.Join([]string{
 		header.Get("Content-Type"),
 		header.Get("Content-MD5"),
 		uri,
-		header.Get("Date"),
+		date,
 	}, ",")
 }
 
@@ -167,9 +172,8 @@ func Compute(canonicalString, secret string) string {
 }
 
 func sufficientHeaders(r *http.Request) error {
-	date := r.Header.Get("Date")
-	if date == "" {
-		return fmt.Errorf("No Date header present")
+	if r.Header.Get("Date") == "" && r.Header.Get("Timestamp") == "" {
+		return fmt.Errorf("No Date or Timestamp header present")
 	}
 
 	if r.Body == nil || r.Body == http.NoBody {
